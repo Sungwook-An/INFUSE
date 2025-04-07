@@ -38,8 +38,6 @@ def get_dataset(name, root, split='train', transform=None, split_file=None):
 #############  Checking the implementation #############
 ########################################################
 if __name__ == "__main__":
-    import os
-    import random
     from torch.utils.data import DataLoader
     
     from data.transforms import get_transform
