@@ -69,6 +69,55 @@ class CrossAttention(nn.Module):
         weighted_value = attn_weights * V  # (B, H, H, W)
         attended = self.output_proj(weighted_value)  # (B, C, H, W)
         return attended
+    
+class EntityGuidedCrossAttention(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.embed_dim = args.feature_dim  # e.g., 640 or 768
+        self.query_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.key_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.value_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
+
+    def forward(self, support_features, entity_vectors, support_labels):
+        """
+        Args:
+            support_features: [N*K, D] image features from support set
+            entity_vectors:   [N, D] semantic entity vectors (one per class)
+            support_labels:   [N*K] labels for each support image
+
+        Returns:
+            refined_support_features: [N*K, D]
+        """
+        N_K, D = support_features.shape
+        N = entity_vectors.shape[0]  # number of classes
+
+        # Project support features
+        K_proj = self.key_proj(support_features)      # [N*K, D]
+        V_proj = self.value_proj(support_features)    # [N*K, D]
+
+        refined_features = torch.zeros_like(support_features)
+
+        for class_idx in range(N):
+            class_mask = (support_labels == class_idx)  # [N*K]
+            if class_mask.sum() == 0:
+                continue
+
+            support_subset = support_features[class_mask]  # [K, D]
+            K_subset = K_proj[class_mask]                  # [K, D]
+            V_subset = V_proj[class_mask]                  # [K, D]
+
+            # Compute attention with entity vector as Q
+            Q = self.query_proj(entity_vectors[class_idx].unsqueeze(0))  # [1, D]
+            attn_scores = torch.matmul(Q, K_subset.T) / (D ** 0.5)       # [1, K]
+            attn_weights = F.softmax(attn_scores, dim=-1)                # [1, K]
+            attended = torch.matmul(attn_weights, V_subset)              # [1, D]
+
+            # Add residual connection
+            refined = support_subset + self.out_proj(attended).repeat(support_subset.size(0), 1)  # [K, D]
+            refined_features[class_mask] = refined
+
+        return refined_features
 
 
 ########################################################

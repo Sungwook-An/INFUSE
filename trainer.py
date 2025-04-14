@@ -3,7 +3,6 @@
 import torch
 from tqdm import tqdm
 from utils.metrics import AverageMeter, accuracy
-from utils.episode import create_episode
 
 def train_one_epoch(model, dataloader, optimizer, criterion, device):
     model.train()

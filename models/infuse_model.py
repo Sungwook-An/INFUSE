@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from models.image_encoder import build_image_encoder
-from models.text_encoder import build_text_encoder
+from models.resnet12 import Res12
+from models.text_encoder import TextEncoder
 from models.evg import EVG
-from models.channel_attention import EntityGuidedCrossAttention
+from models.attention_modules import EntityGuidedCrossAttention
 from models.classifier import MatchingNetworkClassifier
 
 from modules.prompt_utils import generate_entity_tokens
@@ -14,8 +14,8 @@ class INFUSEModel(nn.Module):
         super().__init__()
         
         # 모듈 구성
-        self.image_encoder = build_image_encoder(args)
-        self.text_encoder = build_text_encoder(args)
+        self.image_encoder = Res12(**args.image_encoder_config)
+        self.text_encoder = TextEncoder(**args.text_encoder_config)
         self.evg = EVG(args)
         self.cross_attn = EntityGuidedCrossAttention(args)
         self.classifier = MatchingNetworkClassifier(args)
