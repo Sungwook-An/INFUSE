@@ -2,29 +2,40 @@
 
 import torch
 from torch import nn, optim
+from torchvision.transforms import ToTensor
+from torch.utils.data import DataLoader
+
 from data.dataset import get_dataset
+from data.transforms import get_transform
 from models.infuse_model import INFUSEModel
 from trainer import train_one_epoch, evaluate
-from torch.utils.data import DataLoader
 from utils.episode import FewShotEpisodeSampler
 from utils.logger import log_metrics
 
 def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    
+    train_transform = get_transform(split='train')
+    test_transform = get_transform(split='test')
+    
+    if args.train_transform == None:
+        args.train_transform = train_transform
+    if args.test_transform == None:
+        args.test_transform = test_transform
+        
     train_dataset = get_dataset(args.dataset, split='train', transform=args.train_transform, root=args.data_root)
     val_dataset = get_dataset(args.dataset, split='val', transform=args.test_transform, root=args.data_root)
 
     train_loader = DataLoader(
-        train_dataset,
-        batch_sampler=FewShotEpisodeSampler(train_dataset, args.num_episodes, args.n_way, args.k_shot, args.q_query),
-        num_workers=4
+        FewShotEpisodeSampler(train_dataset, args.num_episodes, args.n_way, args.k_shot, args.q_query),
+        num_workers=4,
+        collate_fn=lambda batch: [torch.stack([ToTensor()(item[0]) for item in batch]), torch.tensor([item[1] for item in batch])]
     )
 
     val_loader = DataLoader(
-        val_dataset,
-        batch_sampler=FewShotEpisodeSampler(val_dataset, args.num_val_episodes, args.n_way, args.k_shot, args.q_query),
-        num_workers=4
+        FewShotEpisodeSampler(val_dataset, args.num_val_episodes, args.n_way, args.k_shot, args.q_query),
+        num_workers=4,
+        collate_fn=lambda batch: [torch.stack([ToTensor()(item[0]) for item in batch]), torch.tensor([item[1] for item in batch])]
     )
 
     model = INFUSEModel(args).to(device)
@@ -55,7 +66,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--dataset", type=str, default="fc100")
     parser.add_argument("--data_root", type=str, default="/root/INFUSE/database")
-    parser.add_argument("--train_transform", default=None)
+    parser.add_argument("--train_transform", default=None)  # transform 정의 (yaml 등등)
     parser.add_argument("--test_transform", default=None)
 
     parser.add_argument("--n_way", type=int, default=5)

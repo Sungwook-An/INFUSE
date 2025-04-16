@@ -1,4 +1,5 @@
 import os
+import torch
 from glob import glob
 
 from data.fc100 import FC100
@@ -103,7 +104,14 @@ if __name__ == "__main__":
     print(f"Dataset: {dataset_name}, Split: {split}")
     print(f"Total samples: {len(dataset)}")
     
-    loader = DataLoader(dataset, batch_size=4, shuffle=True)
+    from torchvision.transforms import ToTensor
+    
+    def collate_fn(batch):
+        images, labels = zip(*batch)
+        images = [ToTensor()(img) for img in images]
+        return torch.stack(images), torch.tensor(labels)
+    
+    loader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=collate_fn)
     for images, labels in loader:
         print("Image batch shape:", images.shape)
         print("Label batch      :", labels)
