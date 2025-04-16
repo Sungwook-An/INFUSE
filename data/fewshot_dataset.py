@@ -63,3 +63,8 @@ class FewShotDataset(Dataset):
         if self.transform:
             image = self.transform(image)
         return image, label
+
+    @property
+    def labels(self):
+        """Returns list of all labels in the dataset"""
+        return [label for _, label in self.data]

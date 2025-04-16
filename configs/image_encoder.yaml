@@ -1,0 +1,5 @@
+keep_prob: 1.0
+avg_pool: false
+drop_rate: 0.1
+drop_block: true
+dropblock_size: 5

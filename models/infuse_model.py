@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from models.resnet12 import Res12
 from models.text_encoder import TextEncoder
-from models.evg import EVG
+from models.evg import EVGNetwork
 from models.attention_modules import EntityGuidedCrossAttention
 from models.classifier import MatchingNetworkClassifier
 
@@ -13,10 +13,10 @@ class INFUSEModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         
-        # 모듈 구성
+        # modules
         self.image_encoder = Res12(**args.image_encoder_config)
         self.text_encoder = TextEncoder(**args.text_encoder_config)
-        self.evg = EVG(args)
+        self.evg = EVGNetwork(**args.evg_config)
         self.cross_attn = EntityGuidedCrossAttention(args)
         self.classifier = MatchingNetworkClassifier(args)
         
@@ -33,11 +33,11 @@ class INFUSEModel(nn.Module):
         Returns:
             logits: (N*Q, N)
         """
-        # 1. 이미지 인코딩
+        # 1. image encoding
         support_feat = self.image_encoder(support_images)  # [N*K, D]
         query_feat = self.image_encoder(query_images)      # [N*Q, D]
 
-        # 2. 텍스트 인코딩: class_name -> entity tokens -> token embeddings
+        # 2. text encoding: class_name -> entity tokens -> token embeddings
         entity_vectors = []
         for cls_name in class_names:
             entity_tokens = generate_entity_tokens(cls_name)  # ex: ["fur", "wild", ...]
