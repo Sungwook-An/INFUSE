@@ -39,12 +39,14 @@ class INFUSEModel(nn.Module):
 
         # 2. text encoding: class_name -> entity tokens -> token embeddings
         entity_vectors = []
+        dataset_name = self.args.dataset
+        
         for cls_name in class_names:
-            entity_tokens = generate_entity_tokens(cls_name)  # ex: ["fur", "wild", ...]
+            entity_tokens = generate_entity_tokens(dataset_name, cls_name)  # ex: ["fur", "wild", ...]
             token_embeddings = self.text_encoder(entity_tokens)  # [L, D]
             class_embedding = self.text_encoder([cls_name])[0]   # [D]
-
-            entity_vector = self.evg(token_embeddings, class_embedding)  # [D]
+            
+            entity_vector = self.evg(class_embedding, token_embeddings)  # [D]
             entity_vectors.append(entity_vector)
 
         entity_vectors = torch.stack(entity_vectors, dim=0)  # [N, D]

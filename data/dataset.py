@@ -6,7 +6,7 @@ from data.fc100 import FC100
 from data.cifar_fs import CIFAR_FS
 from data.miniimagenet import MiniImageNet
 from data.tieredimagenet import TieredImageNet
-    
+
 def get_dataset(name, root, split='train', transform=None, split_file=None):
     """
     Dataset dispatcher function

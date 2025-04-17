@@ -25,7 +25,9 @@ class EVGNetwork(nn.Module):
         Returns:
             Tensor of shape (B, D): final entity representation (v_e)
         """
-        B, N, D = entity_embeddings.shape
+        print(class_embedding.shape)
+        print(entity_embeddings.shape)
+        # B, N, D = entity_embeddings.shape
         
         # Project Q, K, V
         Q = self.query_proj(class_embedding).unsqueeze(1) # (B, 1, H)

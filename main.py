@@ -15,8 +15,11 @@ from utils.logger import log_metrics
 def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    train_transform = get_transform(split='train')
-    test_transform = get_transform(split='test')
+    backbone = args.image_backbone
+    dataset_name = args.dataset
+    
+    train_transform = get_transform(backbone=backbone, dataset=dataset_name, split='train')
+    test_transform = get_transform(backbone=backbone, dataset=dataset_name, split='test')
     
     if args.train_transform == None:
         args.train_transform = train_transform
@@ -27,15 +30,25 @@ def main(args):
     val_dataset = get_dataset(args.dataset, split='val', transform=args.test_transform, root=args.data_root)
 
     train_loader = DataLoader(
-        FewShotEpisodeSampler(train_dataset, args.num_episodes, args.n_way, args.k_shot, args.q_query),
+        train_dataset,
+        batch_sampler=FewShotEpisodeSampler(train_dataset, args.num_episodes, args.n_way, args.k_shot, args.q_query),
         num_workers=4,
-        collate_fn=lambda batch: [torch.stack([ToTensor()(item[0]) for item in batch]), torch.tensor([item[1] for item in batch])]
+        # collate_fn=lambda batch: [torch.stack([ToTensor()(item[0]) for item in batch]), torch.tensor([item[1] for item in batch])]
+        collate_fn=lambda batch: [
+            torch.stack([item[0] for item in batch]),
+            torch.tensor([item[1] for item in batch])
+        ]
     )
 
     val_loader = DataLoader(
-        FewShotEpisodeSampler(val_dataset, args.num_val_episodes, args.n_way, args.k_shot, args.q_query),
+        val_dataset,
+        batch_sampler=FewShotEpisodeSampler(val_dataset, args.num_val_episodes, args.n_way, args.k_shot, args.q_query),
         num_workers=4,
-        collate_fn=lambda batch: [torch.stack([ToTensor()(item[0]) for item in batch]), torch.tensor([item[1] for item in batch])]
+        # collate_fn=lambda batch: [torch.stack([ToTensor()(item[0]) for item in batch]), torch.tensor([item[1] for item in batch])]
+        collate_fn=lambda batch: [
+            torch.stack([item[0] for item in batch]),
+            torch.tensor([item[1] for item in batch])
+        ]
     )
 
     model = INFUSEModel(args).to(device)
@@ -45,8 +58,8 @@ def main(args):
 
     for epoch in range(1, args.epochs + 1):
         print(f"\n[Epoch {epoch}]")
-        train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device)
-        val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+        train_loss, train_acc = train_one_epoch(args, model, train_loader, optimizer, criterion, device)
+        val_loss, val_acc = evaluate(args, model, val_loader, criterion, device)
 
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
         print(f"Val   Loss: {val_loss:.4f} | Val   Acc: {val_acc:.2f}%")
@@ -80,6 +93,9 @@ if __name__ == "__main__":
     parser.add_argument("--feature_dim", type=int, default=640)  # Should match EVG output_dim
     parser.add_argument("--metric", type=str, default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--classifier_temperature", type=float, default=1.0)
+    
+    parser.add_argument("--image_backbone", type=str, default="resnet")
+    parser.add_argument("--text_backbone", type=str, default="bert")
 
     args = parser.parse_args()
 
