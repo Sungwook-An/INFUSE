@@ -1,0 +1,42 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# PyTorch checkpoints, results, and logs
+checkpoints/
+results/
+semantic/
+runs/
+logs/
+*.pth
+*.pt
+
+# Dataset folder
+database/
+dataset/
+
+# Environment files
+.env
+.venv
+*.env
+*.venv
+*.egg-info/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+*.tmp
+*.bak
+
+# Wandb folder
+wandb/
