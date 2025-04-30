@@ -40,3 +40,4 @@ Thumbs.db
 
 # Wandb folder
 wandb/
+resnet_FC100_clip_gpt_mean_1/
