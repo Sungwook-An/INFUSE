@@ -23,6 +23,7 @@ database/
 dataset/
 
 resnet_FC100_clip_gpt_mean_1/
+resnet_FC100_bert_mean_1shot/
 
 # Environment files
 .env
