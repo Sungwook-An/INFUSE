@@ -4,12 +4,12 @@ from transformers import CLIPTokenizer, CLIPTextModel, BertTokenizer, BertModel
 
 
 class TextEncoder(nn.Module):
-    def __init__(self, encoder_name='clip-vit', projection_dim=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, encoder_name='clip', projection_dim=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
         super().__init__()
         self.encoder_name = encoder_name.lower()
         self.device = device
 
-        if self.encoder_name == 'clip-vit':
+        if self.encoder_name == 'clip':
             self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch16")
             self.model = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch16")
             # self.output_dim = 512

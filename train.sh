@@ -1,6 +1,6 @@
 python method/train.py \
     --max-epoch 50 \
-    --mode clip \
+    --mode bert \
     --semantic-size 512 \
     --text_type gpt \
     --shot 1  \

@@ -22,6 +22,8 @@ logs/
 database/
 dataset/
 
+resnet_FC100_clip_gpt_mean_1/
+
 # Environment files
 .env
 .venv
@@ -37,7 +39,6 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
-resnet_FC100_clip_gpt_mean_1/
 
 # Wandb folder
 wandb/

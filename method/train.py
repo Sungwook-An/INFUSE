@@ -17,15 +17,19 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 from method.SemAlign import SemAlign
+import json
 
 from data.samplers import CategoriesSampler
 # from data.tiered_imagenet import tieredImageNet
 from logger import loggers
 from model.res12 import Res12
 from model.swin_transformer import swin_tiny
+from model.evg import EVGNetwork, MultiHeadEVGNetwork
+from model.text_encoder import TextEncoder
 from utils import Cosine_classifier, count_95acc, transform_val_cifar, transform_train_cifar, \
     transform_train, count_kacc, transform_val
 from utils import transform_val_224_cifar, transform_train_224_cifar, transform_train_224, transform_val_224
+from model.extract_semantic import extract_semantic_vectors
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -36,21 +40,28 @@ if __name__ == '__main__':
     parser.add_argument('--shot', type=int, default=1)
     parser.add_argument('--query', type=int, default=15)
     parser.add_argument('--test-way', type=int, default=5)
-    parser.add_argument('--feat-size', type=int, default=640)
     parser.add_argument('--semantic-size', type=int, default=512)
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--drop', type=float, default=0.0)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--step-size', type=int, default=30)
-    parser.add_argument('--mode', type=str, default='clip',
-                        choices=['clip', 'bert'])
     parser.add_argument('--text_type', type=str, default='gpt',
                         choices=['gpt', 'name', 'definition'])
     parser.add_argument('--dataset', type=str, default='TieredImageNet',
                         choices=['MiniImageNet', 'TieredImageNet', 'FC100', 'CIFAR-FS'])
     parser.add_argument('--backbone', type=str, default='resnet',
                         choices=['resnet', 'swin'])
+    
+    parser.add_argument('--mode', type=str, default='bert',
+                        choices=['clip', 'bert'])
+    parser.add_argument('--projection_dim', type=int, default=512)
+    
+    parser.add_argument('--hidden_dim', type=int, default=512)
+    parser.add_argument('--feat-size', type=int, default=640)
+    parser.add_argument('--num_attn_heads', type=int, default=4)
+    parser.add_argument('--top_k', type=int, default=5)
+    
     args = parser.parse_args()
     
     if args.backbone == 'resnet':
@@ -58,7 +69,7 @@ if __name__ == '__main__':
     elif args.backbone == 'swin':
         args.model_path = './checkpoints/Swin-Tiny-{}.pth'.format(args.dataset)
         
-    args.work_dir = '{}_{}_{}_{}_{}_{}'.format(args.backbone, args.dataset, args.mode, args.text_type, args.center, args.shot)
+    args.work_dir = f"{args.backbone}_{args.dataset}_{args.mode}_{args.center}_{args.shot}shot"
 
     if args.dataset == 'TieredImageNet':
         args.num_workers = 0
@@ -137,27 +148,52 @@ if __name__ == '__main__':
     model.load_state_dict(checkpoint)
     model.eval()
     
+    text_encoder = TextEncoder(encoder_name=args.mode, projection_dim=args.projection_dim).to(device)
+    text_encoder.eval()
+
     if args.backbone == 'resnet':
-        feat_size = 640
+        args.feat_size = 640
     elif args.backbone == 'swin':
-        feat_size = 768
+        args.feat_size = 768
+
+    evg = MultiHeadEVGNetwork(
+        input_dim=args.projection_dim,
+        hidden_dim=args.hidden_dim,
+        output_dim=args.semantic_size,
+        num_attn_heads=args.num_attn_heads,
+        top_k=args.top_k
+    ).to(device)
+    evg.train()
+    
+    class_names = list(train_dataset.class_to_idx.keys())
+    class_names_val = list(val_dataset.class_to_idx.keys())
         
-    H = SemAlign(feat_size, args.semantic_size, h_size=4096, drop=args.drop).to(device)
-    optimizer = torch.optim.Adam(H.parameters(), lr=args.lr)
+    H = SemAlign(args.feat_size, args.semantic_size, h_size=4096, drop=args.drop).to(device)
+    optimizer = torch.optim.Adam(list(H.parameters()) + list(evg.parameters()), lr=args.lr)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
-    if 'ImageNet' in args.dataset:
-        semantic = torch.load('./semantic/imagenet_semantic_{}_{}.pth'.format(args.mode, args.text_type))['semantic_feature']
-    else:
-        semantic = torch.load('./semantic/cifar100_semantic_{}_{}.pth'.format(args.mode, args.text_type))['semantic_feature']
-    semantic = {k: v.float() for k, v in semantic.items()}
+    # if 'ImageNet' in args.dataset:
+    #     semantic = torch.load('./semantic/imagenet_semantic_{}_{}.pth'.format(args.mode, args.text_type))['semantic_feature']
+    # else:
+    #     semantic = torch.load('./semantic/cifar100_semantic_{}_{}.pth'.format(args.mode, args.text_type))['semantic_feature']
+    # semantic = {k: v.float() for k, v in semantic.items()}
 
     gap_acc = -1
     max_acc1 = 0.0
     for epoch in range(args.max_epoch):
         for step, [data, labels] in enumerate(tqdm(train_loader)):
+            entity_vectors = extract_semantic_vectors(
+                dataset_name=args.dataset,
+                class_names=class_names,
+                text_encoder=text_encoder,
+                evg_model=evg,
+                device=device
+            )
+            semantic = {cls: vec for cls, vec in zip(class_names, entity_vectors)}
+            
             proto = torch.tensor(np.array([proto_center[idx_to_class[l.item()]] for l in labels])).to(device)
             text_feature = torch.stack([semantic[idx_to_class[l.item()]] for l in labels]).to(device)
+            
             with torch.no_grad():
                 img_feature = model(data.to(device))
 
@@ -187,6 +223,15 @@ if __name__ == '__main__':
             G_acc = []
             with torch.no_grad():
                 for data, labels in tqdm(val_loader):
+                    entity_vectors = extract_semantic_vectors(
+                        dataset_name=args.dataset,
+                        class_names=class_names_val,
+                        text_encoder=text_encoder,
+                        evg_model=evg,
+                        device=device
+                    )
+                    semantic = {cls: vec for cls, vec in zip(class_names_val, entity_vectors)}
+                    
                     data = data.to(device)
                     data = model(data).view(data.size(0), -1)
                     n_support = args.shot * args.test_way
